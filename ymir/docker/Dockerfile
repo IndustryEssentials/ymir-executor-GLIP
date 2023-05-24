@@ -15,7 +15,6 @@ RUN cd /app && python setup.py build develop --user && cd /
 # setup ymir & ymir-GLIP
 RUN pip install "git+https://github.com/modelai/ymir-executor-sdk.git@ymir2.4.0"
 
-COPY . /app
 RUN mkdir /img-man && mv /app/ymir/img-man/*.yaml /img-man/
 
 ENV PYTHONPATH=.
