@@ -41,11 +41,6 @@ def _run_training(cfg: edict) -> None:
     # 2. training model
     print(cfg.param)
 
-
-
-
-
-
     gpu_id = (cfg.param.get('gpu_id'))
     assert gpu_id != None,'Invalid CUDA, GPU id needed'
     gpu_id = str(gpu_id)
@@ -141,8 +136,6 @@ def _run_infer(cfg: edict) -> None:
     assert gpu_id != None,'Invalid CUDA, GPU id needed'
     gpu_id = str(gpu_id)
     gpu_count: int = len(gpu_id.split(',')) if gpu_id else 0
-    batch_size_per_gpu: int = int(cfg.param.batch_size_per_gpu)
-    batch_size: int = batch_size_per_gpu * max(1, gpu_count)
 
     task_config = cfg.param.task_config
     task_weight = cfg.param.model_params_path
@@ -157,7 +150,7 @@ def _run_infer(cfg: edict) -> None:
 
     write_ymir_monitor_process(cfg, task='infer', naive_stage_percent=1.0, stage=YmirStage.POSTPROCESS)
 
-import yaml
+
 if __name__ == '__main__':
     logging.basicConfig(stream=sys.stdout,
                         format='%(levelname)-8s: [%(asctime)s] %(message)s',
@@ -175,4 +168,3 @@ if __name__ == '__main__':
     # merged_cfg = edict()
     # merged_cfg.param = cfg
     sys.exit(start(cfg))
-
