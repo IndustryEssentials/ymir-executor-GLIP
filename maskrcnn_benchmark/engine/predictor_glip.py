@@ -27,6 +27,7 @@ import timeit
 class GLIPDemo(object):
     def __init__(self,
                  cfg,
+                 task_weight,
                  confidence_threshold=0.7,
                  min_image_size=None,
                  show_mask_heatmaps=False,
@@ -47,6 +48,7 @@ class GLIPDemo(object):
         if load_model:
             checkpointer = DetectronCheckpointer(cfg, self.model, save_dir=save_dir)
             _ = checkpointer.load(cfg.MODEL.WEIGHT)
+            _ = checkpointer.load(task_weight, force=True)
 
         self.transforms = self.build_transform()
 
@@ -344,7 +346,7 @@ class GLIPDemo(object):
                     y -= text_offset
 
             cv2.putText(
-                image, s, (int(x), int(y)-text_offset_original), cv2.FONT_HERSHEY_SIMPLEX, text_size, (self.color, self.color, self.color), text_pixel, cv2.LINE_AA
+                image, s, (int(x), int(y)-text_offset_original), cv2.FONT_HERSHEY_SIMPLEX, text_size, self.color, text_pixel, cv2.LINE_AA
             )
             previous_locations.append((int(x), int(y)))
 

@@ -16,6 +16,7 @@ from maskrcnn_benchmark.utils.amp import autocast, GradScaler
 from maskrcnn_benchmark.data.datasets.evaluation import evaluate
 from .inference import inference
 import pdb
+from ymir_exc.util import YmirStage, get_merged_config, write_ymir_monitor_process, write_ymir_training_result
 
 def reduce_loss_dict(loss_dict):
     """
@@ -56,6 +57,7 @@ def do_train(
         meters=None,
         zero_shot=False
 ):
+    ymir_cfg = get_merged_config()
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     # meters = MetricLogger(delimiter="  ")
@@ -217,6 +219,7 @@ def do_train(
         meters.update(time=batch_time, data=data_time)
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
+        
 
         if iteration % 20 == 0 or iteration == max_iter:
         # if iteration % 1 == 0 or iteration == max_iter:
@@ -264,7 +267,7 @@ def do_train(
                         verbose=False
                     )
                     if is_main_process():
-                        eval_result = _result[0].results['bbox']['AP']
+                        eval_result = _result[0].results['bbox']['AP50']
             else:
                 results_dict = {}
                 cpu_device = torch.device("cpu")
@@ -292,7 +295,7 @@ def do_train(
                     if cfg.DATASETS.CLASS_AGNOSTIC:
                         eval_result = eval_result.results['box_proposal']['AR@100']
                     else:
-                        eval_result = eval_result.results['bbox']['AP']
+                        eval_result = eval_result.results['bbox']['AP50']
             model.train()
 
             if model_ema is not None and cfg.SOLVER.USE_EMA_FOR_MONITOR:
@@ -323,7 +326,7 @@ def do_train(
                     if cfg.DATASETS.CLASS_AGNOSTIC:
                         eval_result = eval_result.results['box_proposal']['AR@100']
                     else:
-                        eval_result = eval_result.results['bbox']['AP']
+                        eval_result = eval_result.results['bbox']['AP50']
                 
             arguments.update(eval_result=eval_result)
 
@@ -339,6 +342,10 @@ def do_train(
                     patience_counter = 0
                     previous_best = eval_result
                     checkpointer.save("model_best", **arguments)
+                    if is_main_process():
+                        write_ymir_training_result(ymir_cfg,evaluation_result={'mAP':float(arguments['eval_result'])},
+                                                                            id='best', files=['/out/models/model_best.pth','config.yaml'])
+                
                 print("Previous Best", previous_best, "Patience Counter", patience_counter, "Eval Result", eval_result)
                 if patience_counter >= cfg.SOLVER.AUTO_TERMINATE_PATIENCE:
                     if is_main_process():
@@ -347,8 +354,16 @@ def do_train(
 
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
+            if is_main_process():
+                write_ymir_training_result(ymir_cfg,evaluation_result={'mAP':float(arguments['eval_result'])},
+                                                                    id='model_{:07d}'.format(iteration), files=["/out/models/model_{:07d}.pth".format(iteration),'config.yaml'])
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
+            if is_main_process():
+                print(3,arguments)
+
+                write_ymir_training_result(ymir_cfg,evaluation_result={'mAP':float(arguments['eval_result'])},
+                                                                    id='model_final', files=["/out/models/model_final.pth",'config.yaml'])
             break
 
     total_training_time = time.time() - start_training_time

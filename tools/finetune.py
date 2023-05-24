@@ -30,7 +30,8 @@ from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir, save_config
 from maskrcnn_benchmark.utils.metric_logger import (MetricLogger, TensorboardLogger)
 import shutil
-
+import loralib as lora
+import torch.nn as nn
 
 def removekey(d, prefix):
     r = dict(d)
@@ -43,8 +44,28 @@ def removekey(d, prefix):
         r.pop(key)
     return r
 
+# replace proj and query layer in vit moudle to lora
+# got some problem,not using right now
+def replace_layers(module):
+    for name, submodule in module.named_children():
+        if name == 'proj' or name =='query':
+            if isinstance(submodule,nn.Conv2d):
+                in_channels = submodule.in_channels
+                out_channels = submodule.out_channels
+                kernel_size = submodule.kernel_size
+                stride= submodule.stride
+                module._modules[name] =lora.Conv2d(in_channels,out_channels,kernel_size=kernel_size[0],stride=stride[0],r=16)
+            elif isinstance(submodule,nn.Linear):
+                in_features  = submodule.in_features 
+                out_features  = submodule.out_features 
 
-def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, save_config_path = None):
+                module._modules[name] =lora.Linear(in_features,out_features,r=16)
+        else:
+            # 递归遍历子模块的子模块
+            replace_layers(submodule)
+
+
+def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, save_config_path = None,use_tensorboard=True):
 
     data_loader = make_data_loader(
         cfg,
@@ -60,36 +81,11 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
     
     model = build_detection_model(cfg)
     device = torch.device(cfg.MODEL.DEVICE)
+    # only train lora layer
+    lora.mark_only_lora_as_trainable(model)
+
     model.to(device)
 
-
-    if cfg.MODEL.LINEAR_PROB:
-        assert cfg.MODEL.BACKBONE.FREEZE, "For linear probing, backbone should be frozen!"
-        if hasattr(model.backbone, 'fpn'):
-            assert cfg.MODEL.FPN.FREEZE, "For linear probing, FPN should be frozen!"
-    if cfg.MODEL.BACKBONE.FREEZE:
-        for p in model.backbone.body.parameters():
-            p.requires_grad = False
-    if cfg.MODEL.FPN.FREEZE:
-        for p in model.backbone.fpn.parameters():
-            p.requires_grad = False
-    if cfg.MODEL.RPN.FREEZE:
-        for p in model.rpn.parameters():
-            p.requires_grad = False
-    if cfg.MODEL.LINEAR_PROB:
-        if model.rpn is not None:
-            for key, p in model.rpn.named_parameters():
-                if not ('bbox_pred' in key or 'cls_logits' in key or 'centerness' in key or 'cosine_scale' in key or 'dot_product_projection_text' in key or 'head.log_scale' in key or 'head.bias_lang' in key or 'head.bias0' in key):
-                    p.requires_grad = False
-        if model.roi_heads is not None:
-            for key, p in model.roi_heads.named_parameters():
-                if not ('bbox_pred' in key or 'cls_logits' in key or 'centerness' in key or 'cosine_scale' in key or 'dot_product_projection_text' in key or 'head.log_scale' in key or 'head.bias_lang' in key or 'head.bias0' in key):
-                    p.requires_grad = False
-    if cfg.MODEL.DYHEAD.FUSE_CONFIG.ADD_LINEAR_LAYER:
-        if model.rpn is not None:
-            for key, p in model.rpn.named_parameters():
-                if 'tunable_linear' in key:
-                    p.requires_grad = True
 
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
@@ -121,6 +117,8 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
 
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
     meters = MetricLogger(delimiter="  ")
+
+    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
 
     if zero_shot:
         return model
@@ -156,7 +154,14 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
             arguments,
         )
     else:
-        meters = MetricLogger(delimiter="  ")
+        if use_tensorboard:
+            meters = TensorboardLogger(
+                log_dir=cfg.TENSORBOARD_EXP,
+                start_iter=arguments["iteration"],
+                delimiter="  "
+            )
+        else:
+            meters = MetricLogger(delimiter="  ")
         do_train(
             cfg,
             model,
@@ -215,11 +220,11 @@ def test(cfg, model, distributed, verbose=False):
 def tuning_highlevel_override(cfg,):
     if cfg.SOLVER.TUNING_HIGHLEVEL_OVERRIDE == "full":
         cfg.MODEL.BACKBONE.FREEZE = False
-        cfg.MODEL.FPN.FREEZE = False
-        cfg.MODEL.RPN.FREEZE = False
+        cfg.MODEL.FPN.FREEZE = True
+        cfg.MODEL.RPN.FREEZE = True
         cfg.MODEL.LINEAR_PROB = False
         cfg.MODEL.DYHEAD.FUSE_CONFIG.ADD_LINEAR_LAYER = False
-        cfg.MODEL.LANGUAGE_BACKBONE.FREEZE = False
+        cfg.MODEL.LANGUAGE_BACKBONE.FREEZE = True
     elif cfg.SOLVER.TUNING_HIGHLEVEL_OVERRIDE == "linear_prob":
         cfg.MODEL.BACKBONE.FREEZE = True
         cfg.MODEL.FPN.FREEZE = True
@@ -353,7 +358,7 @@ def main():
         logger.info(config_str)
     logger.info("Running with config:\n{}".format(cfg))
 
-    output_config_path = os.path.join(cfg.OUTPUT_DIR, 'config.yml')
+    output_config_path = os.path.join(cfg.OUTPUT_DIR, 'config.yaml')
     logger.info("Saving config into: {}".format(output_config_path))
     # save overloaded model config in the output directory
     save_config(cfg, output_config_path)
@@ -379,7 +384,7 @@ def main():
             cfg_.defrost()
             cfg_.merge_from_file(ft_cfg)
             cfg_.merge_from_list(args.opts)
-            ft_output_dir = output_dir + '/ft_task_{}'.format(task_id)
+
 
             if args.custom_shot_and_epoch_and_general_copy:
                 custom_shot = int(args.custom_shot_and_epoch_and_general_copy.split("_")[0])
@@ -405,7 +410,7 @@ def main():
 
             if shuffle_seed is not None:
                 cfg_.DATASETS.SHUFFLE_SEED = shuffle_seed
-                ft_output_dir = ft_output_dir + '_seed_{}'.format(shuffle_seed)
+        
 
             # Remerge to make sure that the command line arguments are prioritized
             cfg_.merge_from_list(args.opts)
@@ -415,18 +420,17 @@ def main():
                 cfg_.MODEL.WEIGHT = cfg_.MODEL.WEIGHT.replace("model_last_checkpoint.pth", last_checkpoint)
                 print("cfg.MODEL.WEIGHT ", cfg_.MODEL.WEIGHT)
 
-            mkdir(ft_output_dir)
-            cfg_.OUTPUT_DIR = ft_output_dir
+
             
             tuning_highlevel_override(cfg_)
-            cfg_.freeze()
+            # cfg_.freeze()
 
             logger.info("Loaded fine-tune configuration file {}".format(ft_cfg))
             with open(ft_cfg, "r") as cf:
                 config_str = "\n" + cf.read()
                 logger.info(config_str)
 
-            output_config_path = os.path.join(ft_output_dir, 'config.yml')
+            output_config_path = os.path.join(cfg_.OUTPUT_DIR, 'config.yaml')
             print("Saving config into: {}".format(output_config_path))
             # save config here because the data loader will make some changes
             save_config(cfg_, output_config_path)
@@ -434,7 +438,7 @@ def main():
             if custom_shot == 10000:
                 if is_main_process():
                     print("Copying pre-training checkpoint")
-                    shutil.copy(try_to_find(cfg_.MODEL.WEIGHT), os.path.join(ft_output_dir, "model_best.pth"))
+                    shutil.copy(try_to_find(cfg_.MODEL.WEIGHT), os.path.join(cfg_.OUTPUT_DIR, "model_best.pth"))
             else:
                 model = train(
                     cfg_, 

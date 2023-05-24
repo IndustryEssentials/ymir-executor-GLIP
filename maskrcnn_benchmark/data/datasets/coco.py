@@ -223,10 +223,10 @@ class COCODataset(CocoDetection):
             classes = torch.ones_like(classes)
         target.add_field("labels", classes)
 
-        if anno and "segmentation" in anno[0]:
-            masks = [obj["segmentation"] for obj in anno]
-            masks = SegmentationMask(masks, img.size, mode='poly')
-            target.add_field("masks", masks)
+        # if anno and "segmentation" in anno[0]:
+        #     masks = [obj["segmentation"] for obj in anno]
+        #     masks = SegmentationMask(masks, img.size, mode='poly')
+        #     target.add_field("masks", masks)
 
         if anno and "cbox" in anno[0]:
             cboxes = [obj["cbox"] for obj in anno]

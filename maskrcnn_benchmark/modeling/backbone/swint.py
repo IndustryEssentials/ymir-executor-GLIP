@@ -9,7 +9,7 @@ import torch.nn.functional as F
 import torch.utils.checkpoint as checkpoint
 import numpy as np
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-
+import loralib as lora
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
 
@@ -100,9 +100,11 @@ class WindowAttention(nn.Module):
         relative_position_index = relative_coords.sum(-1)  # Wh*Ww, Wh*Ww
         self.register_buffer("relative_position_index", relative_position_index)
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        # self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.qkv = lora.MergedLinear(dim, 3*dim, r=8, enable_lora=[True, False, True], bias=qkv_bias)
         self.attn_drop = nn.Dropout(attn_drop)
-        self.proj = nn.Linear(dim, dim)
+        # self.proj = nn.Linear(dim, dim)
+        self.proj = lora.Linear(dim, dim, r=8)
         self.proj_drop = nn.Dropout(proj_drop)
 
         trunc_normal_(self.relative_position_bias_table, std=.02)

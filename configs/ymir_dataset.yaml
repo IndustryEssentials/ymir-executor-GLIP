@@ -1,0 +1,58 @@
+DATALOADER:
+  ASPECT_RATIO_GROUPING: false
+  SIZE_DIVISIBILITY: 32
+DATASETS:
+  GENERAL_COPY: 16
+  OVERRIDE_CATEGORY: '[{''id'': 0, ''name'': ''bus_stop'', ''supercategory'': ''object''},
+    {''id'': 1, ''name'': ''do_not_enter'', ''supercategory'': ''object''}, {''id'':
+    2, ''name'': ''do_not_stop'', ''supercategory'': ''object''}, {''id'': 3, ''name'':
+    ''do_not_turn_l'', ''supercategory'': ''object''}, {''id'': 4, ''name'': ''do_not_turn_r'',
+    ''supercategory'': ''object''}, {''id'': 5, ''name'': ''do_not_u_turn'', ''supercategory'':
+    ''object''}, {''id'': 6, ''name'': ''enter_left_lane'', ''supercategory'': ''object''},
+    {''id'': 7, ''name'': ''green_light'', ''supercategory'': ''object''}, {''id'':
+    8, ''name'': ''left_right_lane'', ''supercategory'': ''object''}, {''id'': 9,
+    ''name'': ''no_parking'', ''supercategory'': ''object''}, {''id'': 10, ''name'':
+    ''parking'', ''supercategory'': ''object''}, {''id'': 11, ''name'': ''ped_crossing'',
+    ''supercategory'': ''object''}, {''id'': 12, ''name'': ''ped_zebra_cross'', ''supercategory'':
+    ''object''}, {''id'': 13, ''name'': ''railway_crossing'', ''supercategory'': ''object''},
+    {''id'': 14, ''name'': ''red_light'', ''supercategory'': ''object''}, {''id'':
+    15, ''name'': ''stop'', ''supercategory'': ''object''}, {''id'': 16, ''name'':
+    ''t_intersection_l'', ''supercategory'': ''object''}, {''id'': 17, ''name'': ''traffic_light'',
+    ''supercategory'': ''object''}, {''id'': 18, ''name'': ''u_turn'', ''supercategory'':
+    ''object''}, {''id'': 19, ''name'': ''warning'', ''supercategory'': ''object''},
+    {''id'': 20, ''name'': ''yellow_light'', ''supercategory'': ''object''}]'
+  REGISTER:
+    test:
+      ann_file: /out/tmp/val/val.json
+      img_dir: /out/tmp/val/images/
+    train:
+      ann_file: /out/tmp/train/train.json
+      img_dir: /out/tmp/train/images/
+    val:
+      ann_file: /out/tmp/val/val.json
+      img_dir: /out/tmp/val/images/
+  TEST: ('val',)
+  TRAIN: ('train',)
+INPUT:
+  MAX_SIZE_TEST: 1333
+  MAX_SIZE_TRAIN: 1333
+  MIN_SIZE_TEST: 1333
+  MIN_SIZE_TRAIN: 1333
+MODEL:
+  ATSS:
+    NUM_CLASSES: 22
+  DYHEAD:
+    NUM_CLASSES: 22
+  FCOS:
+    NUM_CLASSES: 22
+  ROI_BOX_HEAD:
+    NUM_CLASSES: 22
+OUTPUT_DIR: /out/models
+SOLVER:
+  BASE_LR: 0.0001
+  CHECKPOINT_PERIOD: 1
+  IMS_PER_BATCH: 24
+  MAX_EPOCH: 1
+TENSORBOARD_EXP: /out/tensorboard
+TEST:
+  IMS_PER_BATCH: 24
