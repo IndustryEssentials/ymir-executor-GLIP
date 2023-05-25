@@ -13,6 +13,8 @@ from ymir.util import process_error, create_ymir_dataset_config
 def start(cfg: edict) -> int:
     logging.info(f'merged config: {cfg}')
 
+    os.makedirs('/app/OUTPUT', exist_ok=True)
+
     if cfg.ymir.run_training:
             _run_training(cfg)
     else:
