@@ -20,18 +20,25 @@ RUN wget https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt \
      -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/tokenizer_config.json \
      -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
-     
+
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')"
 # Change the pip source if needed
 # RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple
 # RUN pip config set install.trusted-host mirrors.aliyun.com
 RUN pip install einops shapely timm yacs tensorboardX ftfy prettytable pymongo transformers loralib==0.1.1
-COPY . /app
+COPY ./configs /app/configs
+COPY ./knowledge /app/knowledge
+COPY ./maskrcnn_benchmark /app/maskrcnn_benchmark
+COPY ./odinw /app/odinw
+COPY ./setup.py /app/setup.py
+COPY ./tools /app/tools
 RUN cd /app && python setup.py build develop --user && cd /
 
 # setup ymir & ymir-GLIP
 RUN pip install "git+https://github.com/modelai/ymir-executor-sdk.git@ymir2.4.0"
 
+COPY ./ymir /app/ymir
+COPY ./start.py /app/start.py
 RUN mkdir /img-man && mv /app/ymir/img-man/*.yaml /img-man/
 
 ENV PYTHONPATH=.
