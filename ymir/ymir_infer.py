@@ -1,5 +1,5 @@
 
-from ymir.util import process_error, combine_caption, get_weight_file
+from ymir.util import process_error, combine_caption, get_weight_file,gen_anns_from_dets
 import os
 from PIL import Image
 from ymir_exc.util import  get_merged_config ,write_ymir_monitor_process,YmirStage
@@ -181,26 +181,26 @@ def main() -> int:
         class_name = dict()
         for result in results:
             for img_data in result:
-                anns = []
+                # anns = []
                 top_predictions = img_data['top_predictions']
-                img_file = img_data['img_path'].split('/')[-1]
+                # img_file = img_data['img_path'].split('/')[-1]
+                img_path = img_data['img_path']
                 caption = img_data['caption']
-                caption= caption.split(' . ')
-                for i in range(len(caption)):
-                    class_name[i+1] = caption[i]
                 all_boxes = top_predictions.convert('xywh')
                 all_boxes_covered = all_boxes.bbox
                 
 
                 for j in range(all_boxes_covered.shape[0]):
                     bbox = list(map(int,all_boxes_covered[j].numpy().tolist()))
-                    ann = rw.Annotation(class_name=class_name[top_predictions.get_field('labels')[j].item()],
-                                        score=top_predictions.get_field('scores')[j].item(),
-                                        box=rw.Box(x = max(0,bbox[0]),y=max(0,bbox[1]),w=max(0,bbox[2]),h=max(0,bbox[3])))
-                    anns.append(ann)
-                ymir_infer_result[img_file] = anns
-
-        rw.write_infer_result(infer_result=ymir_infer_result)
+                    # ann = rw.Annotation(class_name=class_name[top_predictions.get_field('labels')[j].item()],
+                    #                     score=top_predictions.get_field('scores')[j].item(),
+                    #                     box=rw.Box(x = max(0,bbox[0]),y=max(0,bbox[1]),w=max(0,bbox[2]),h=max(0,bbox[3])))
+                    # anns.append(ann)
+                    ymir_infer_result = gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path)
+                # ymir_infer_result[img_file] = anns
+        if 'annotations' not in ymir_infer_result:
+            ymir_infer_result['annotations'] = []
+        rw.write_infer_result(infer_result=ymir_infer_result,algorithm='segmentation')
     return 0
 
 if __name__ == '__main__':

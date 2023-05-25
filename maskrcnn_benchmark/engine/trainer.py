@@ -222,7 +222,7 @@ def do_train(
 
         if iteration % 1 == 0:
             if global_rank <= 0:
-                print((iteration) / (max_iter),iteration,max_iter)
+
                 write_ymir_monitor_process(ymir_cfg, task='training', naive_stage_percent=(iteration) / (max_iter), stage=YmirStage.TASK)
 
         if iteration % 20 == 0 or iteration == max_iter:

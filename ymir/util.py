@@ -216,10 +216,8 @@ def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
     # all_boxes = top_predictions.convert('xywh')
     all_boxes = top_predictions.convert('xywh')
     all_boxes_covered = all_boxes.bbox
-    anns = []
-    imgs=[]
+
     cats=[]
-    print(top_predictions.size)
 
     if 'images' in ymir_infer_result:
         img_id = len(ymir_infer_result['images'])
@@ -262,7 +260,7 @@ def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
             'id': len_anno + j,
             'image_id': img_id,
             'category_id': top_predictions.get_field('labels')[j].item(),
-            # 'area':  ,
+            'area':  int(bbox[2])*int(bbox[3]),
             'bbox': bbox,
             'confidence':  top_predictions.get_field('scores')[j].item(),
             'iscrowd': 0
