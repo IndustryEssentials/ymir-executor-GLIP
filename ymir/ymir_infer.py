@@ -1,5 +1,5 @@
 
-from ymir.util import process_error, combine_caption, gen_anns_from_dets
+from ymir.util import process_error, combine_caption, get_weight_file
 import os
 from PIL import Image
 from ymir_exc.util import  get_merged_config ,write_ymir_monitor_process,YmirStage
@@ -16,6 +16,7 @@ import torch.distributed as dist
 import datetime
 import argparse
 from tqdm import tqdm
+
 def init_distributed_mode(args):
     """Initialize distributed training, if appropriate"""
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
@@ -101,7 +102,8 @@ def run(ymir_cfg: edict, args):
     weight_file = "MODEL/glip_a_tiny_o365.pth"
 
 
-    task_weight = ymir_cfg.param.model_params_path
+    task_weight = get_weight_file(ymir_cfg)
+
     captions = ymir_cfg.param.prompt
 
     cfg.local_rank = args.local_rank

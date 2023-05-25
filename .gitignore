@@ -1,10 +1,7 @@
 *.egg-info
 *.pyc
 build/
-DATASET/
-OUTPUT/
 MODEL/
-
 # compilation and distribution
 __pycache__
 _ext

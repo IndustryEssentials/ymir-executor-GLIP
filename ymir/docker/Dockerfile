@@ -22,7 +22,9 @@ RUN wget https://huggingface.co/bert-base-uncased/resolve/main/tokenizer_config.
      -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
      
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')"
-
+# Change the pip source if needed
+# RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple
+# RUN pip config set install.trusted-host mirrors.aliyun.com
 RUN pip install einops shapely timm yacs tensorboardX ftfy prettytable pymongo transformers loralib==0.1.1
 COPY . /app
 RUN cd /app && python setup.py build develop --user && cd /

@@ -1,5 +1,5 @@
 
-from ymir.util import process_error, combine_caption, gen_anns_from_dets
+from ymir.util import process_error, combine_caption_mining,get_weight_file
 import os
 from PIL import Image
 from ymir_exc.util import YmirStage, get_merged_config, write_ymir_monitor_process
@@ -95,8 +95,8 @@ def run(ymir_cfg: edict, args):
     weight_file = "MODEL/glip_a_tiny_o365.pth"
 
 
-    task_weight = ymir_cfg.param.model_params_path
-    captions = ymir_cfg.param.prompt
+    task_weight = get_weight_file(ymir_cfg)
+    captions = ymir_cfg.param.class_names
     cfg.local_rank = args.local_rank
     cfg.num_gpus = gpu_count
     
@@ -131,7 +131,7 @@ def run(ymir_cfg: edict, args):
     show_mask_heatmaps=False
     )
     glip_demo.color=(255,0,255)
-    caption = combine_caption(captions)
+    caption = combine_caption_mining(captions)
 
     mining_results = dict()
     dataset_size = len(images_rank)

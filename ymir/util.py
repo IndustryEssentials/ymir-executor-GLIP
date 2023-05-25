@@ -200,8 +200,15 @@ class YmirDataset(td.Dataset):
 def combine_caption(captions):
     return captions.replace(';',' . ')
 
+def combine_caption_mining(captions):
+    return ' . '.join(captions)
 
-
+def get_weight_file(ymir_cfg):
+    for file in ymir_cfg.param.model_params_path:
+        if file.endswith('.pth'):
+            return file
+    return []
+    
 def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
     """Generates json annotations from detections."""
 
