@@ -4,22 +4,22 @@ ENTRYPOINT []
 RUN apt-get update && apt-get install -y ca-certificates
 # install GLIP
 RUN mkdir /app/MODEL -p
-RUN wget https://penzhanwu2bbs.blob.core.windows.net/data/GLIPv1_Open/models/swin_tiny_patch4_window7_224.pth \
-     -qP /app/MODEL/
-RUN wget https://penzhanwu2bbs.blob.core.windows.net/data/GLIPv1_Open/models/glip_a_tiny_o365.pth \
-     -qP /app/MODEL/
+# RUN wget https://penzhanwu2bbs.blob.core.windows.net/data/GLIPv1_Open/models/swin_tiny_patch4_window7_224.pth \
+#      -qP /app/MODEL/
+# RUN wget https://penzhanwu2bbs.blob.core.windows.net/data/GLIPv1_Open/models/glip_a_tiny_o365.pth \
+#      -qP /app/MODEL/
 
 RUN mkdir /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b -p
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/pytorch_model.bin \
-     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b
+     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/config.json \
-     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b
+     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/tokenizer.json \
-     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b
+     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/vocab.txt \
-     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b
+     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
 RUN wget https://huggingface.co/bert-base-uncased/resolve/main/tokenizer_config.json \
-     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b
+     -qP /root/.cache/huggingface/hub/models--bert-base-uncased/snapshots/0a6aa9128b6194f4f3c4db429b6cb4891cdb421b/
      
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')"
 
