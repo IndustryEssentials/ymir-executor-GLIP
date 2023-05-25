@@ -95,7 +95,7 @@ def run(ymir_cfg: edict, args):
         # )
         init_distributed_mode(args)
         print("Passed distributed init")
-    batch_size_per_gpu: int = int(ymir_cfg.param.batch_size_per_gpu)
+
 
     config_file = "configs/pretrain/glip_A_Swin_T_O365.yaml"
     weight_file = "MODEL/glip_a_tiny_o365.pth"
@@ -133,21 +133,21 @@ def run(ymir_cfg: edict, args):
     glip_demo = GLIPDemo(
     cfg,
     task_weight,
-    min_image_size=800,
-    confidence_threshold=0.5,
+    min_image_size=MIN_SIZE_TEST,
+    confidence_threshold=confidence,
     show_mask_heatmaps=False
     )
     glip_demo.color=(255,0,255)
     caption = combine_caption(captions)
 
-    monitor_gap = max(1, len(images_rank) // 1000 // batch_size_per_gpu)
+    monitor_gap = max(1, len(images_rank) // 1000)
     results = []
     pbar = tqdm(images_rank) if args.rank in [0, -1] else images_rank
     for idx, img_path in enumerate(pbar):
         # top_predictions.mode : xyxy
         # batch: /in/assets/41/68624cc85d7515e9649d324d78bf875ed6dd9c41.jpg
         image = load(img_path)
-        result, top_predictions = glip_demo.run_on_web_image(image, caption, confidence)
+        top_predictions = glip_demo.inference(image, caption)
         if idx % monitor_gap == 0:
             write_ymir_monitor_process(ymir_cfg,
                                        task='infer',
@@ -163,6 +163,8 @@ def main() -> int:
     parser.add_argument("--world-size", default=1, type=int, help="number of distributed processes")
     parser.add_argument("--dist-url", default="env://", help="url used to set up distributed training")
     parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--rank", type=int, default=-1)
+
     args = parser.parse_args()
     ymir_cfg = get_merged_config()
    

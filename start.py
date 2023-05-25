@@ -7,7 +7,7 @@ from easydict import EasyDict as edict
 
 from ymir_exc import monitor
 from ymir_exc.util import YmirStage, find_free_port, get_bool, get_merged_config, write_ymir_monitor_process
-from ymir.util import process_error, create_ymir_dataset_config, modefy_task_config
+from ymir.util import process_error, create_ymir_dataset_config
 
 
 def start(cfg: edict) -> int:
@@ -137,9 +137,9 @@ def _run_infer(cfg: edict) -> None:
     gpu_id = str(gpu_id)
     gpu_count: int = len(gpu_id.split(',')) if gpu_id else 0
 
-    task_config = cfg.param.task_config
+
     task_weight = cfg.param.model_params_path
-    modefy_task_config(task_config,cfg)
+
     port: int = find_free_port()
     if not task_weight:
         raise FileNotFoundError('task_weight not found')

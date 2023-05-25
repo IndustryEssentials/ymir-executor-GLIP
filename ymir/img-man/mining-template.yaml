@@ -10,5 +10,4 @@ MAX_SIZE_TEST: 1333
 MIN_SIZE_TEST: 800
 mining_algorithm: entropy
 conf_thres: 0.25
-pin_memory: False
 shm_size: 128G

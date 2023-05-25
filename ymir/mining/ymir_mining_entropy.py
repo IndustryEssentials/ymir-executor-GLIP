@@ -82,7 +82,7 @@ def run(ymir_cfg: edict, args):
     MIN_SIZE_TEST = ymir_cfg.param.get('MIN_SIZE_TEST')
     
     distributed = gpu_count > 1
-    batch_size_per_gpu: int = int(ymir_cfg.param.batch_size_per_gpu)
+
     if distributed:
         # torch.cuda.set_device(args.local_rank)
         # torch.distributed.init_process_group(
@@ -126,8 +126,8 @@ def run(ymir_cfg: edict, args):
     glip_demo = GLIPDemo(
     cfg,
     task_weight,
-    min_image_size=800,
-    confidence_threshold=0.5,
+    min_image_size=MIN_SIZE_TEST,
+    confidence_threshold=confidence,
     show_mask_heatmaps=False
     )
     glip_demo.color=(255,0,255)
@@ -141,7 +141,7 @@ def run(ymir_cfg: edict, args):
         # top_predictions.mode : xyxy
         # batch: /in/assets/41/68624cc85d7515e9649d324d78bf875ed6dd9c41.jpg
         image = load(img_path)
-        result, top_predictions = glip_demo.run_on_web_image(image, caption, confidence)
+        top_predictions = glip_demo.inference(image, caption)
         if args.rank in [-1, 0]:
             write_ymir_monitor_process(ymir_cfg, task='mining', naive_stage_percent=idx  / dataset_size, stage=YmirStage.TASK)
         image_file = img_path.split('/')[-1]
@@ -160,6 +160,7 @@ def main() -> int:
     parser.add_argument("--world-size", default=1, type=int, help="number of distributed processes")
     parser.add_argument("--dist-url", default="env://", help="url used to set up distributed training")
     parser.add_argument("--local_rank", type=int, default=0)
+    parser.add_argument("--rank", type=int, default=-1)
     args = parser.parse_args()
 
     ymir_cfg = get_merged_config()

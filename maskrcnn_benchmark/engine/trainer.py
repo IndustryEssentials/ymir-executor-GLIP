@@ -219,7 +219,11 @@ def do_train(
         meters.update(time=batch_time, data=data_time)
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
-        
+
+        if iteration % 1 == 0:
+            if global_rank <= 0:
+                print((iteration) / (max_iter),iteration,max_iter)
+                write_ymir_monitor_process(ymir_cfg, task='training', naive_stage_percent=(iteration) / (max_iter), stage=YmirStage.TASK)
 
         if iteration % 20 == 0 or iteration == max_iter:
         # if iteration % 1 == 0 or iteration == max_iter:
@@ -249,6 +253,7 @@ def do_train(
                 print("Evaluating")
             eval_result = 0.0
             model.eval()
+            print(iteration % checkpoint_period == 0,iteration == max_iter)
             if cfg.SOLVER.TEST_WITH_INFERENCE:
                 with torch.no_grad():
                     try:
