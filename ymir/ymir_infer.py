@@ -178,7 +178,7 @@ def main() -> int:
         for rank in range(args.world_size):
             results.append(torch.load(f'/out/infer_results_{rank}.pt'))
         ymir_infer_result = dict()
-        class_name = dict()
+
         for result in results:
             for img_data in result:
                 # anns = []
