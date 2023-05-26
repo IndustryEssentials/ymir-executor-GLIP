@@ -61,7 +61,6 @@ def replace_layers(module):
 
                 module._modules[name] =lora.Linear(in_features,out_features,r=16)
         else:
-            # 递归遍历子模块的子模块
             replace_layers(submodule)
 
 
@@ -319,7 +318,6 @@ def main():
 
     parser.add_argument('--use_prepared_data', action='store_true')
 
-
     parser.add_argument("--keep_testing", action="store_true")
 
     args = parser.parse_args()
@@ -348,9 +346,6 @@ def main():
     logger = setup_logger("maskrcnn_benchmark", output_dir, get_rank())
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
-
-    #logger.info("Collecting env info (might take some time)")
-    #logger.info("\n" + collect_env_info())
 
     logger.info("Loaded configuration file {}".format(args.config_file))
     with open(args.config_file, "r") as cf:
@@ -385,7 +380,6 @@ def main():
             cfg_.merge_from_file(ft_cfg)
             cfg_.merge_from_list(args.opts)
 
-
             if args.custom_shot_and_epoch_and_general_copy:
                 custom_shot = int(args.custom_shot_and_epoch_and_general_copy.split("_")[0])
                 custom_epoch = int(args.custom_shot_and_epoch_and_general_copy.split("_")[1])
@@ -410,7 +404,6 @@ def main():
 
             if shuffle_seed is not None:
                 cfg_.DATASETS.SHUFFLE_SEED = shuffle_seed
-        
 
             # Remerge to make sure that the command line arguments are prioritized
             cfg_.merge_from_list(args.opts)
@@ -420,10 +413,7 @@ def main():
                 cfg_.MODEL.WEIGHT = cfg_.MODEL.WEIGHT.replace("model_last_checkpoint.pth", last_checkpoint)
                 print("cfg.MODEL.WEIGHT ", cfg_.MODEL.WEIGHT)
 
-
-            
             tuning_highlevel_override(cfg_)
-            # cfg_.freeze()
 
             logger.info("Loaded fine-tune configuration file {}".format(ft_cfg))
             with open(ft_cfg, "r") as cf:
@@ -461,7 +451,6 @@ def main():
                     # test(cfg_, model, args.distributed, verbose=True)
                     continue
                 
-
 
 if __name__ == "__main__":
     main()
