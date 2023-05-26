@@ -13,6 +13,7 @@ from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.utils.miscellaneous import  save_config
 from pycocotools import mask as maskUtils
 
+
 def split_into_train_val(index_file,imgdir,output_json_file):
     '''
     /out/tmp/assets/2e/b1a44898eefd6e08ee28e455ab046187eaed1a2e.png      /out/tmp/annotations/coco-annotations.json
@@ -25,34 +26,30 @@ def split_into_train_val(index_file,imgdir,output_json_file):
     img_names = []
     with open(index_file,'r') as f:
         for line in f.readlines():
-            img_path, input_json_file = line.strip().split()  
+            img_path, input_json_file = line.strip().split()
             shutil.copy(img_path,imgdir)
             img_name = os.path.basename(img_path)
             img_names.append(img_name)
 
     with open(input_json_file, 'r') as f:
         data = json.load(f)
-    new_categories=[]
-
 
     new_data = {
-        # 'info': data['info'],
-        # 'licenses': data['licenses'],
         'images': [],
         'annotations': [],
         'categories': data['categories']
     }
-    
+
     image_ids = set()
     for image in data['images']:
         if image['file_name'] in img_names:
             new_data['images'].append(image)
             image_ids.add(image['id'])
-    
+
     for annotation in data['annotations']:
         if annotation['image_id'] in image_ids:
             new_data['annotations'].append(annotation)
-    
+
     with open(output_json_file, 'w') as f:
         json.dump(new_data, f)
     return new_data['categories']
@@ -70,7 +67,7 @@ def create_ymir_dataset_config(ymir_cfg):
 
     training_index_file = ymir_cfg.ymir.input.training_index_file
     val_index_file = ymir_cfg.ymir.input.val_index_file
-    
+
     split_train_img_dir = '/out/tmp/train/images/'
     split_val_img_dir = '/out/tmp/val/images/'
 
@@ -84,21 +81,20 @@ def create_ymir_dataset_config(ymir_cfg):
     DATASETS = dict()
     DATALOADER = dict()
     REGISTER  = dict()
-    
+
     DATALOADER['ASPECT_RATIO_GROUPING'] = False
-    DATALOADER['SIZE_DIVISIBILITY'] = 32 
+    DATALOADER['SIZE_DIVISIBILITY'] = 32
 
     REGISTER['test'] = dict(ann_file=val_output_json_file,img_dir=split_val_img_dir)
     REGISTER['train'] = dict(ann_file=train_output_json_file,img_dir=split_train_img_dir)
     REGISTER['val'] = dict(ann_file=val_output_json_file,img_dir=split_val_img_dir)
-
 
     DATASETS['OVERRIDE_CATEGORY']=str(dataset_category)
     DATASETS['GENERAL_COPY']=16
     DATASETS['REGISTER'] = REGISTER
     DATASETS['TEST']=str(("val",))
     DATASETS['TRAIN']=str(("train",))
-    
+
     INPUT = dict()
 
     INPUT['MAX_SIZE_TEST'] = int(ymir_cfg.param.MAX_SIZE_TEST)
@@ -112,7 +108,7 @@ def create_ymir_dataset_config(ymir_cfg):
     MODEL['DYHEAD'] = dict(NUM_CLASSES = NUM_CLASSES)
     MODEL['FCOS'] = dict(NUM_CLASSES = NUM_CLASSES)
     MODEL['ROI_BOX_HEAD'] = dict(NUM_CLASSES = NUM_CLASSES)
-    
+
     TEST = dict()
     TEST['IMS_PER_BATCH'] = batch_size
 
@@ -128,12 +124,10 @@ def create_ymir_dataset_config(ymir_cfg):
     YMIR_DATASET['MODEL'] = MODEL
     YMIR_DATASET['SOLVER'] = SOLVER
     YMIR_DATASET['TEST'] = TEST
-    
+
     YMIR_DATASET['OUTPUT_DIR'] = ymir_cfg.ymir.output.models_dir
     YMIR_DATASET['TENSORBOARD_EXP'] = ymir_cfg.ymir.output.tensorboard_dir
 
-
-    
     with open("configs/ymir_dataset.yaml", "w") as f:
         yaml.safe_dump(YMIR_DATASET, f)
 
@@ -153,23 +147,18 @@ def modefy_task_config(model_cfg,ymir_cfg):
     save_config(cfg, ymir_cfg.param.task_config)
 
 
-
-
-
-
-
 def process_error(e,msg='defult'):
     print(type(e),e,'=========')
     if msg=='dataloader' or 'dataloader' in e.args:
-        crash_code = ExecutorReturnCode.RC_EXEC_DATASET_ERROR 
+        crash_code = ExecutorReturnCode.RC_EXEC_DATASET_ERROR
     elif type(e) == urllib.error.HTTPError:
-        crash_code = ExecutorReturnCode.RC_EXEC_NETWORK_ERROR 
+        crash_code = ExecutorReturnCode.RC_EXEC_NETWORK_ERROR
     elif type(e) ==FileNotFoundError:
-        crash_code = ExecutorReturnCode.RC_EXEC_CONFIG_ERROR 
+        crash_code = ExecutorReturnCode.RC_EXEC_CONFIG_ERROR
     elif 'CUDA out of memory' in repr(e):
-        crash_code = ExecutorReturnCode.RC_EXEC_OOM 
+        crash_code = ExecutorReturnCode.RC_EXEC_OOM
     elif 'Invalid CUDA' in repr(e):
-        crash_code = ExecutorReturnCode.RC_EXEC_NO_GPU 
+        crash_code = ExecutorReturnCode.RC_EXEC_NO_GPU
     else:
         crash_code = ExecutorReturnCode.RC_CMD_CONTAINER_ERROR
     monitor.write_monitor_logger(percent=1,
@@ -177,8 +166,8 @@ def process_error(e,msg='defult'):
                                 return_code=crash_code)
     raise RuntimeError(f"App crashed with code: {crash_code}")
 
-def load_image_file(img_path):
 
+def load_image_file(img_path):
     pil_image = Image.open(img_path).convert("RGB")
     # convert to BGR format
     image = np.array(pil_image)[:, :, [2, 1, 0]]
@@ -197,19 +186,23 @@ class YmirDataset(td.Dataset):
     def __len__(self):
         return len(self.images)
 
+
 def combine_caption(captions):
     return captions.replace(';',' . ')
 
+
 def combine_caption_mining(captions):
     return ' . '.join(captions)
+
 
 def get_weight_file(ymir_cfg):
     for file in ymir_cfg.param.model_params_path:
         if file.endswith('.pth'):
             return file
     return ''
-    
-def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
+
+
+def gen_anns_from_dets(top_predictions, ymir_infer_result, caption, img_path):
     """Generates json annotations from detections."""
 
     # Load the detections
@@ -233,11 +226,11 @@ def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
             "coco_url": "",
             "flickr_url": ""
         }
-    
+
     if 'images' in ymir_infer_result:
         ymir_infer_result['images'].append(img)
     else:
-        ymir_infer_result['images']=[img]
+        ymir_infer_result['images'] = [img]
 
     caption= caption.split(' . ')
     for i in range(len(caption)):
@@ -265,7 +258,7 @@ def gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path):
             'confidence':  top_predictions.get_field('scores')[j].item(),
             'iscrowd': 0
         }
-       
+
         if 'annotations' in ymir_infer_result:
             ymir_infer_result['annotations'].append(ann_i_j)
         else:

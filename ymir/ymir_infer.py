@@ -1,21 +1,22 @@
-
-from ymir.util import process_error, combine_caption, get_weight_file,gen_anns_from_dets
+import argparse
+import datetime
 import os
-from PIL import Image
-from ymir_exc.util import  get_merged_config ,write_ymir_monitor_process,YmirStage
+
+from easydict import EasyDict as edict
 from maskrcnn_benchmark.engine.predictor_glip import GLIPDemo
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.comm import synchronize, get_rank
 import matplotlib.pyplot as plt
-from easydict import EasyDict as edict
 from maskrcnn_benchmark.config import cfg
 import numpy as np
-from ymir_exc import result_writer as rw
+from PIL import Image
 import torch
 import torch.distributed as dist
-import datetime
-import argparse
 from tqdm import tqdm
+from ymir_exc import result_writer as rw
+from ymir_exc.util import  get_merged_config ,write_ymir_monitor_process,YmirStage
+from ymir.util import process_error, combine_caption, get_weight_file,gen_anns_from_dets
+
 
 def init_distributed_mode(args):
     """Initialize distributed training, if appropriate"""
@@ -31,8 +32,6 @@ def init_distributed_mode(args):
         args.distributed = False
         return
 
-    #args.distributed = True
-
     torch.cuda.set_device(args.gpu)
     args.dist_backend = "nccl"
     print("| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True)
@@ -43,6 +42,7 @@ def init_distributed_mode(args):
     )
     dist.barrier()
     setup_for_distributed(args.rank == 0)
+
 
 def setup_for_distributed(is_master):
     """
@@ -76,10 +76,8 @@ def load(img_path):
     image = np.array(pil_image)[:, :, [2, 1, 0]]
     return image
 
-def run(ymir_cfg: edict, args):
-    # eg: gpu_id = 1,3,5,7  for LOCAL_RANK = 2, will use gpu 5.
 
-    
+def run(ymir_cfg: edict, args):
     confidence = ymir_cfg.param.get('conf_thres')
     MAX_SIZE_TEST = ymir_cfg.param.get('MAX_SIZE_TEST')
     MIN_SIZE_TEST = ymir_cfg.param.get('MIN_SIZE_TEST')
@@ -90,17 +88,11 @@ def run(ymir_cfg: edict, args):
     gpu_count: int = len(gpu_id.split(',')) if gpu_id else 0
     distributed = gpu_count > 1
     if distributed:
-        # torch.cuda.set_device(args.local_rank)
-        # torch.distributed.init_process_group(
-        #     backend="nccl", init_method="env://"
-        # )
         init_distributed_mode(args)
         print("Passed distributed init")
 
-
     config_file = "configs/pretrain/glip_A_Swin_T_O365.yaml"
     weight_file = "MODEL/glip_a_tiny_o365.pth"
-
 
     task_weight = get_weight_file(ymir_cfg)
 
@@ -108,7 +100,7 @@ def run(ymir_cfg: edict, args):
 
     cfg.local_rank = args.local_rank
     cfg.num_gpus = gpu_count
-    
+
     cfg.merge_from_file(config_file)
     cfg.merge_from_list(["MODEL.WEIGHT", weight_file])
     cfg.merge_from_list(["INPUT.MAX_SIZE_TEST", MAX_SIZE_TEST])
@@ -116,13 +108,9 @@ def run(ymir_cfg: edict, args):
     cfg.freeze()
     log_dir = cfg.OUTPUT_DIR
     logger = setup_logger("maskrcnn_benchmark", log_dir, get_rank())
-    # logger.info(args)
     logger.info("Using {} GPUs".format(gpu_count))
-    # logger.info(cfg)
-
     if not task_weight:
         raise FileNotFoundError('task_weight not found')
-
 
     with open(ymir_cfg.ymir.input.candidate_index_file, 'r') as f:
         images = [line.strip() for line in f.readlines()]
@@ -132,13 +120,11 @@ def run(ymir_cfg: edict, args):
     else:
         images_rank = images
 
-    glip_demo = GLIPDemo(
-    cfg,
-    task_weight,
-    min_image_size=MIN_SIZE_TEST,
-    confidence_threshold=confidence,
-    show_mask_heatmaps=False
-    )
+    glip_demo = GLIPDemo(cfg,
+                         task_weight,
+                         min_image_size=MIN_SIZE_TEST,
+                         confidence_threshold=confidence,
+                         show_mask_heatmaps=False)
     glip_demo.color=(255,0,255)
     caption = combine_caption(captions)
 
@@ -155,7 +141,7 @@ def run(ymir_cfg: edict, args):
                                        task='infer',
                                        naive_stage_percent=idx  / len(images_rank),
                                        stage=YmirStage.TASK)
-            
+
         results.append(dict(img_path=img_path, top_predictions=top_predictions,caption =caption))
     torch.save(results, f'/out/infer_results_{max(0,args.rank)}.pt')
 
@@ -169,7 +155,7 @@ def main() -> int:
 
     args = parser.parse_args()
     ymir_cfg = get_merged_config()
-   
+
     run(ymir_cfg,args)
     if args.world_size > 1:
         dist.barrier()
@@ -181,27 +167,16 @@ def main() -> int:
 
         for result in results:
             for img_data in result:
-                # anns = []
                 top_predictions = img_data['top_predictions']
-                # img_file = img_data['img_path'].split('/')[-1]
                 img_path = img_data['img_path']
                 caption = img_data['caption']
-                all_boxes = top_predictions.convert('xywh')
-                all_boxes_covered = all_boxes.bbox
-                
 
-                for j in range(all_boxes_covered.shape[0]):
-                    bbox = list(map(int,all_boxes_covered[j].numpy().tolist()))
-                    # ann = rw.Annotation(class_name=class_name[top_predictions.get_field('labels')[j].item()],
-                    #                     score=top_predictions.get_field('scores')[j].item(),
-                    #                     box=rw.Box(x = max(0,bbox[0]),y=max(0,bbox[1]),w=max(0,bbox[2]),h=max(0,bbox[3])))
-                    # anns.append(ann)
-                    ymir_infer_result = gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path)
-                # ymir_infer_result[img_file] = anns
+                ymir_infer_result = gen_anns_from_dets(top_predictions,ymir_infer_result,caption,img_path)
         if 'annotations' not in ymir_infer_result:
             ymir_infer_result['annotations'] = []
         rw.write_infer_result(infer_result=ymir_infer_result,algorithm='segmentation')
     return 0
+
 
 if __name__ == '__main__':
     try:
