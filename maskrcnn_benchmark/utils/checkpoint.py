@@ -10,6 +10,7 @@ from maskrcnn_benchmark.utils.big_model_loading import load_big_format
 from maskrcnn_benchmark.utils.pretrain_model_loading import load_pretrain_format
 from maskrcnn_benchmark.utils.imports import import_file
 from maskrcnn_benchmark.utils.model_zoo import cache_url
+import loralib as lora
 
 
 class Checkpointer(object):
@@ -39,7 +40,7 @@ class Checkpointer(object):
             return
 
         data = {}
-        data["model"] = self.model.state_dict()
+        data["model"] = lora.lora_state_dict(self.model)
         if self.optimizer is not None:
             data["optimizer"] = self.optimizer.state_dict()
         if self.scheduler is not None:

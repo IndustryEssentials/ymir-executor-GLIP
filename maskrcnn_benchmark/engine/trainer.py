@@ -16,6 +16,7 @@ from maskrcnn_benchmark.utils.amp import autocast, GradScaler
 from maskrcnn_benchmark.data.datasets.evaluation import evaluate
 from .inference import inference
 import pdb
+from ymir_exc.util import YmirStage, get_merged_config, write_ymir_monitor_process, write_ymir_training_result
 
 def reduce_loss_dict(loss_dict):
     """
@@ -56,6 +57,7 @@ def do_train(
         meters=None,
         zero_shot=False
 ):
+    ymir_cfg = get_merged_config()
     logger = logging.getLogger("maskrcnn_benchmark.trainer")
     logger.info("Start training")
     # meters = MetricLogger(delimiter="  ")
@@ -75,7 +77,7 @@ def do_train(
 
     if cfg.SOLVER.CHECKPOINT_PER_EPOCH != -1 and cfg.SOLVER.MAX_EPOCH >= 1:
         checkpoint_period = len(data_loader) * cfg.SOLVER.CHECKPOINT_PER_EPOCH // cfg.SOLVER.MAX_EPOCH
-    
+
     if global_rank <= 0 and cfg.SOLVER.MAX_EPOCH >= 1:
         print("Iter per epoch ", len(data_loader) // cfg.SOLVER.MAX_EPOCH )
 
@@ -123,29 +125,6 @@ def do_train(
                     loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
 
-            # save checkpoints for further debug if nan happens
-            # loss_value = losses.item()
-            # if not math.isfinite(loss_value):
-            #     logging.error(f'=> loss is {loss_value}, stopping training')
-            #     logging.error("Losses are : {}".format(loss_dict))
-            #     time_str = time.strftime('%Y-%m-%d-%H-%M')
-            #     fname = os.path.join(checkpointer.save_dir, f'{time_str}_states.pth')
-            #     logging.info(f'=> save error state to {fname}')
-            #     dict_to_save = {
-            #         'x': images,
-            #         'y': targets,
-            #         'loss': losses,
-            #         'states': model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
-            #     }
-            #     if len(captions) > 0:
-            #         dict_to_save['captions'] = captions
-            #         dict_to_save['positive_map'] = positive_map
-            #     torch.save(
-            #             dict_to_save,
-            #             fname
-            #         )
-
-
             if torch.isnan(losses) or torch.isinf(losses):
                 logging.error("NaN encountered, ignoring")
                 losses[losses != losses] = 0
@@ -160,27 +139,6 @@ def do_train(
             else:
                 loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
-
-            # loss_value = losses.item()
-            # if not math.isfinite(loss_value):
-            #     logging.error(f'=> loss is {loss_value}, stopping training')
-            #     time_str = time.strftime('%Y-%m-%d-%H-%M')
-            #     fname = os.path.join(checkpointer.save_dir, f'{time_str}_states.pth')
-            #     logging.info(f'=> save error state to {fname}')
-            #     dict_to_save = {
-            #         'x': images,
-            #         'y': targets,
-            #         'loss': losses,
-            #         'states': model.module.state_dict() if hasattr(model, 'module') else model.state_dict()
-            #     }
-            #     if len(captions) > 0:
-            #         dict_to_save['captions'] = captions
-            #         dict_to_save['positive_map'] = positive_map
-            #     torch.save(
-            #         dict_to_save,
-            #         fname
-            #     )
-                
 
             if torch.isnan(losses) or torch.isinf(losses):
                 losses[losses != losses] = 0
@@ -218,8 +176,11 @@ def do_train(
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
+        if iteration % 5 == 0:
+            if global_rank <= 0:
+                write_ymir_monitor_process(ymir_cfg, task='training', naive_stage_percent=(iteration) / (max_iter), stage=YmirStage.TASK)
+
         if iteration % 20 == 0 or iteration == max_iter:
-        # if iteration % 1 == 0 or iteration == max_iter:
             #logger.info(
             if global_rank <= 0:
                 print(
@@ -246,6 +207,7 @@ def do_train(
                 print("Evaluating")
             eval_result = 0.0
             model.eval()
+            print(iteration % checkpoint_period == 0,iteration == max_iter)
             if cfg.SOLVER.TEST_WITH_INFERENCE:
                 with torch.no_grad():
                     try:
@@ -264,7 +226,7 @@ def do_train(
                         verbose=False
                     )
                     if is_main_process():
-                        eval_result = _result[0].results['bbox']['AP']
+                        eval_result = _result[0].results['bbox']['AP50']
             else:
                 results_dict = {}
                 cpu_device = torch.device("cpu")
@@ -292,7 +254,7 @@ def do_train(
                     if cfg.DATASETS.CLASS_AGNOSTIC:
                         eval_result = eval_result.results['box_proposal']['AR@100']
                     else:
-                        eval_result = eval_result.results['bbox']['AP']
+                        eval_result = eval_result.results['bbox']['AP50']
             model.train()
 
             if model_ema is not None and cfg.SOLVER.USE_EMA_FOR_MONITOR:
@@ -323,15 +285,14 @@ def do_train(
                     if cfg.DATASETS.CLASS_AGNOSTIC:
                         eval_result = eval_result.results['box_proposal']['AR@100']
                     else:
-                        eval_result = eval_result.results['bbox']['AP']
-                
+                        eval_result = eval_result.results['bbox']['AP50']
+
             arguments.update(eval_result=eval_result)
 
             if cfg.SOLVER.USE_AUTOSTEP:
                 eval_result = all_gather(eval_result)[0] #broadcast_data([eval_result])[0]
-                # print("Rank {} eval result gathered".format(cfg.local_rank), eval_result)
                 scheduler.step(eval_result)
-            
+
             if cfg.SOLVER.AUTO_TERMINATE_PATIENCE != -1:
                 if eval_result < previous_best:
                     patience_counter += 1
@@ -339,6 +300,12 @@ def do_train(
                     patience_counter = 0
                     previous_best = eval_result
                     checkpointer.save("model_best", **arguments)
+                    if is_main_process():
+                        write_ymir_training_result(ymir_cfg,
+                                                   evaluation_result={'mAP': float(arguments['eval_result'])},
+                                                   id='best',
+                                                   files=['/out/models/model_best.pth', 'config.yaml'])
+
                 print("Previous Best", previous_best, "Patience Counter", patience_counter, "Eval Result", eval_result)
                 if patience_counter >= cfg.SOLVER.AUTO_TERMINATE_PATIENCE:
                     if is_main_process():
@@ -347,8 +314,20 @@ def do_train(
 
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
+            if is_main_process():
+                write_ymir_training_result(ymir_cfg,
+                                           evaluation_result={'mAP': float(arguments['eval_result'])},
+                                           id='model_{:07d}'.format(iteration),
+                                           files=["/out/models/model_{:07d}.pth".format(iteration), 'config.yaml'])
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
+            if is_main_process():
+                print(3,arguments)
+
+                write_ymir_training_result(ymir_cfg,
+                                           evaluation_result={'mAP': float(arguments['eval_result'])},
+                                           id='model_final',
+                                           files=["/out/models/model_final.pth", 'config.yaml'])
             break
 
     total_training_time = time.time() - start_training_time
