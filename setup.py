@@ -28,6 +28,7 @@ def get_extensions():
     extra_compile_args = {"cxx": []}
     define_macros = []
 
+    # this script runs in dockerfile, force build pytorch in GPU mode
     extension = CUDAExtension
     sources += source_cuda
     define_macros += [("WITH_CUDA", None)]
