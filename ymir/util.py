@@ -13,7 +13,7 @@ from maskrcnn_benchmark.utils.miscellaneous import  save_config
 
 
 def _read_coco_and_fix_ids(coco_file: str) -> dict:
-    """ coco wants category and annotation ids from 1, but ymir from 0 """
+    """ coco wants category ids from 1, but ymir from 0 """
     with open(coco_file, 'r') as f:
         coco_data = json.load(f)
     for cat in coco_data['categories']:
