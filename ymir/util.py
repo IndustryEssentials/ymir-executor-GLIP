@@ -33,12 +33,8 @@ def split_into_train_val(index_file,imgdir,output_json_file):
     with open(input_json_file, 'r') as f:
         data = json.load(f)
     
-    new_categories=[]
-    categories = data['categories']
-
-    for category in categories:
-        category['id']=category['id']+1
-        new_categories.append(category)
+    for category in data['categories']:
+        category['id']+=1
 
 
     new_data = {
@@ -46,7 +42,7 @@ def split_into_train_val(index_file,imgdir,output_json_file):
         # 'licenses': data['licenses'],
         'images': [],
         'annotations': [],
-        'categories': new_categories
+        'categories': data['categories']
     }
     
     image_ids = set()
@@ -62,7 +58,7 @@ def split_into_train_val(index_file,imgdir,output_json_file):
     
     with open(output_json_file, 'w') as f:
         json.dump(new_data, f)
-    return new_categories
+    return data['categories']
 
 
 def create_ymir_dataset_config(ymir_cfg):
