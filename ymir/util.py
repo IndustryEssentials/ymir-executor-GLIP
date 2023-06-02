@@ -12,49 +12,52 @@ from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.utils.miscellaneous import  save_config
 
 
-def _split_into_train_val(index_file,imgdir,output_json_file):
+def _read_coco_and_fix_ids(coco_file: str) -> dict:
+    """ coco wants category ids from 1, but ymir from 0 """
+    with open(coco_file, 'r') as f:
+        coco_data = json.load(f)
+    for cat in coco_data['categories']:
+        cat['id'] += 1
+    for anno in coco_data['annotations']:
+        anno['category_id'] += 1
+    return coco_data
+
+
+def _split_into_train_val(index_file: str, out_img_dir: str, output_json_file: str, coco_data: dict) -> None:
     '''
     /out/tmp/assets/2e/b1a44898eefd6e08ee28e455ab046187eaed1a2e.png      /out/tmp/annotations/coco-annotations.json
     '''
 
-    if not os.path.isdir(imgdir):
-        logging.info(f'make dir for train image in {imgdir}')
-        os.makedirs(imgdir)
+    if not os.path.isdir(out_img_dir):
+        logging.info(f'make dir for train image in {out_img_dir}')
+        os.makedirs(out_img_dir)
 
     img_names = []
     with open(index_file,'r') as f:
         for line in f.readlines():
-            img_path, input_json_file = line.strip().split()
-            shutil.copy(img_path,imgdir)
+            img_path, *_ = line.strip().split()
+            shutil.copy(img_path, out_img_dir)
             img_name = os.path.basename(img_path)
             img_names.append(img_name)
 
-    with open(input_json_file, 'r') as f:
-        data = json.load(f)
-
-    for category in data['categories']:
-        category['id'] += 1
-
-    new_data = {
+    out_coco_data = {
         'images': [],
         'annotations': [],
-        'categories': data['categories']
+        'categories': coco_data['categories']
     }
 
     image_ids = set()
-    for image in data['images']:
+    for image in coco_data['images']:
         if image['file_name'] in img_names:
-            new_data['images'].append(image)
+            out_coco_data['images'].append(image)
             image_ids.add(image['id'])
 
-    for annotation in data['annotations']:
+    for annotation in coco_data['annotations']:
         if annotation['image_id'] in image_ids:
-            annotation['category_id'] += 1
-            new_data['annotations'].append(annotation)
+            out_coco_data['annotations'].append(annotation)
 
     with open(output_json_file, 'w') as f:
-        json.dump(new_data, f)
-    return data['categories']
+        json.dump(out_coco_data, f)
 
 
 def create_ymir_dataset_config(ymir_cfg):
@@ -76,8 +79,16 @@ def create_ymir_dataset_config(ymir_cfg):
     val_output_json_file='/out/tmp/val/val.json'
     train_output_json_file='/out/tmp/train/train.json'
 
-    dataset_category = _split_into_train_val(training_index_file,split_train_img_dir,train_output_json_file)
-    _ = _split_into_train_val(val_index_file,split_val_img_dir,val_output_json_file)
+    coco_data = _read_coco_and_fix_ids(coco_file='/in/annotations/coco-annotations.json')
+    dataset_category = coco_data['categories']
+    _split_into_train_val(index_file=training_index_file,
+                          out_img_dir=split_train_img_dir,
+                          output_json_file=train_output_json_file,
+                          coco_data=coco_data)
+    _split_into_train_val(index_file=val_index_file,
+                          out_img_dir=split_val_img_dir,
+                          output_json_file=val_output_json_file,
+                          coco_data=coco_data)
 
     YMIR_DATASET = dict()
     DATASETS = dict()
@@ -90,7 +101,6 @@ def create_ymir_dataset_config(ymir_cfg):
     REGISTER['test'] = dict(ann_file=val_output_json_file,img_dir=split_val_img_dir)
     REGISTER['train'] = dict(ann_file=train_output_json_file,img_dir=split_train_img_dir)
     REGISTER['val'] = dict(ann_file=val_output_json_file,img_dir=split_val_img_dir)
-
 
     DATASETS['OVERRIDE_CATEGORY']=str(dataset_category)
     DATASETS['GENERAL_COPY']=16
@@ -130,8 +140,6 @@ def create_ymir_dataset_config(ymir_cfg):
 
     YMIR_DATASET['OUTPUT_DIR'] = ymir_cfg.ymir.output.models_dir
     YMIR_DATASET['TENSORBOARD_EXP'] = ymir_cfg.ymir.output.tensorboard_dir
-
-
 
     with open("configs/ymir_dataset.yaml", "w") as f:
         yaml.safe_dump(YMIR_DATASET, f)
