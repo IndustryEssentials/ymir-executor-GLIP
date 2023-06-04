@@ -1,22 +1,22 @@
-
-from ymir.util import process_error, combine_caption_mining,get_weight_file
+import argparse
+import datetime
 import os
-from PIL import Image
-from ymir_exc.util import YmirStage, get_merged_config, write_ymir_monitor_process
-from tqdm import tqdm
+
+from easydict import EasyDict as edict
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.engine.predictor_glip import GLIPDemo
 from maskrcnn_benchmark.utils.comm import get_rank
-import matplotlib.pyplot as plt
-from easydict import EasyDict as edict
 from maskrcnn_benchmark.config import cfg
 import numpy as np
-from ymir_exc import result_writer as rw
+from PIL import Image
 import torch
 import torch.distributed as dist
-import datetime
-import argparse
 from tqdm import tqdm
+
+from ymir_exc import result_writer as rw
+from ymir_exc.util import YmirStage, get_merged_config, write_ymir_monitor_process
+from ymir.util import process_error, combine_caption_mining,get_weight_file
+
 
 def init_distributed_mode(args):
     """Initialize distributed training, if appropriate"""
@@ -32,8 +32,6 @@ def init_distributed_mode(args):
         args.distributed = False
         return
 
-    #args.distributed = True
-
     torch.cuda.set_device(args.gpu)
     args.dist_backend = "nccl"
     print("| distributed init (rank {}): {}".format(args.rank, args.dist_url), flush=True)
@@ -44,6 +42,7 @@ def init_distributed_mode(args):
     )
     dist.barrier()
     setup_for_distributed(args.rank == 0)
+
 
 def setup_for_distributed(is_master):
     """
@@ -61,14 +60,12 @@ def setup_for_distributed(is_master):
     __builtin__.print = print
 
 
-
-
 def load(img_path):
-
     pil_image = Image.open(img_path).convert("RGB")
     # convert to BGR format
     image = np.array(pil_image)[:, :, [2, 1, 0]]
     return image
+
 
 def run(ymir_cfg: edict, args):
     # eg: gpu_id = 1,3,5,7  for LOCAL_RANK = 2, will use gpu 5.
@@ -80,26 +77,21 @@ def run(ymir_cfg: edict, args):
     gpu_count: int = len(gpu_id.split(',')) if gpu_id else 0
     MAX_SIZE_TEST = ymir_cfg.param.get('MAX_SIZE_TEST')
     MIN_SIZE_TEST = ymir_cfg.param.get('MIN_SIZE_TEST')
-    
+
     distributed = gpu_count > 1
 
     if distributed:
-        # torch.cuda.set_device(args.local_rank)
-        # torch.distributed.init_process_group(
-        #     backend="nccl", init_method="env://"
-        # )
         init_distributed_mode(args)
         print("Passed distributed init")
 
     config_file = "configs/pretrain/glip_A_Swin_T_O365.yaml"
     weight_file = "MODEL/glip_a_tiny_o365.pth"
 
-
     task_weight = get_weight_file(ymir_cfg)
     captions = ymir_cfg.param.class_names
     cfg.local_rank = args.local_rank
     cfg.num_gpus = gpu_count
-    
+
     cfg.merge_from_file(config_file)
     cfg.merge_from_list(["MODEL.WEIGHT", weight_file])
     cfg.merge_from_list(["INPUT.MAX_SIZE_TEST", MAX_SIZE_TEST])
@@ -107,29 +99,24 @@ def run(ymir_cfg: edict, args):
     cfg.freeze()
     log_dir = cfg.OUTPUT_DIR
     logger = setup_logger("maskrcnn_benchmark", log_dir, get_rank())
-    # logger.info(args)
     logger.info("Using {} GPUs".format(gpu_count))
-    # logger.info(cfg)
 
     if not task_weight:
         raise FileNotFoundError('task_weight not found')
 
-
     with open(ymir_cfg.ymir.input.candidate_index_file, 'r') as f:
         images = [line.strip() for line in f.readlines()]
 
-    if  args.rank != -1:
+    if args.rank != -1:
         images_rank = images[args.rank:: args.world_size]
     else:
         images_rank = images
 
-    glip_demo = GLIPDemo(
-    cfg,
-    task_weight,
-    min_image_size=MIN_SIZE_TEST,
-    confidence_threshold=confidence,
-    show_mask_heatmaps=False
-    )
+    glip_demo = GLIPDemo(cfg,
+                         task_weight,
+                         min_image_size=MIN_SIZE_TEST,
+                         confidence_threshold=confidence,
+                         show_mask_heatmaps=False)
     glip_demo.color=(255,0,255)
     caption = combine_caption_mining(captions)
 
@@ -152,7 +139,6 @@ def run(ymir_cfg: edict, args):
             mining_results[image_file] = -10
             continue
     torch.save(mining_results, f'/out/mining_results_{max(0,args.rank)}.pt')
-
 
 
 def main() -> int:
@@ -179,6 +165,8 @@ def main() -> int:
                 ymir_mining_result.append((img_file, score))
         rw.write_mining_result(mining_result=ymir_mining_result)
     return 0
+
+
 if __name__ == '__main__':
     try:
         main()

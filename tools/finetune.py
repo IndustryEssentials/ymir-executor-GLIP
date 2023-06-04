@@ -48,20 +48,23 @@ def removekey(d, prefix):
 # got some problem,not using right now
 def replace_layers(module):
     for name, submodule in module.named_children():
-        if name == 'proj' or name =='query':
-            if isinstance(submodule,nn.Conv2d):
+        if name == 'proj' or name == 'query':
+            if isinstance(submodule, nn.Conv2d):
                 in_channels = submodule.in_channels
                 out_channels = submodule.out_channels
                 kernel_size = submodule.kernel_size
-                stride= submodule.stride
-                module._modules[name] =lora.Conv2d(in_channels,out_channels,kernel_size=kernel_size[0],stride=stride[0],r=16)
-            elif isinstance(submodule,nn.Linear):
-                in_features  = submodule.in_features 
-                out_features  = submodule.out_features 
+                stride = submodule.stride
+                module._modules[name] = lora.Conv2d(in_channels,
+                                                    out_channels,
+                                                    kernel_size=kernel_size[0],
+                                                    stride=stride[0],
+                                                    r=16)
+            elif isinstance(submodule, nn.Linear):
+                in_features = submodule.in_features
+                out_features = submodule.out_features
 
-                module._modules[name] =lora.Linear(in_features,out_features,r=16)
+                module._modules[name] = lora.Linear(in_features, out_features, r=16)
         else:
-            # 递归遍历子模块的子模块
             replace_layers(submodule)
 
 
@@ -78,7 +81,7 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
         data_loaders_val = data_loaders_val[0]
     else:
         data_loaders_val = None
-    
+
     model = build_detection_model(cfg)
     device = torch.device(cfg.MODEL.DEVICE)
     # only train lora layer
@@ -89,7 +92,7 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
 
     optimizer = make_optimizer(cfg, model)
     scheduler = make_lr_scheduler(cfg, optimizer)
-    
+
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
             model, device_ids=[local_rank], output_device=local_rank,
@@ -104,7 +107,7 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
     output_dir = cfg.OUTPUT_DIR
 
     save_to_disk = get_rank() == 0
-    
+
     checkpointer = DetectronCheckpointer(
         cfg, model, optimizer, scheduler, output_dir, save_to_disk
     )
@@ -122,7 +125,7 @@ def train(cfg, local_rank, distributed, zero_shot, skip_optimizer_resume=False, 
 
     if zero_shot:
         return model
-    
+
     if is_main_process():
         for name, p in model.named_parameters():
             if p.requires_grad:
@@ -319,7 +322,6 @@ def main():
 
     parser.add_argument('--use_prepared_data', action='store_true')
 
-
     parser.add_argument("--keep_testing", action="store_true")
 
     args = parser.parse_args()
@@ -349,9 +351,6 @@ def main():
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
 
-    #logger.info("Collecting env info (might take some time)")
-    #logger.info("\n" + collect_env_info())
-
     logger.info("Loaded configuration file {}".format(args.config_file))
     with open(args.config_file, "r") as cf:
         config_str = "\n" + cf.read()
@@ -376,7 +375,7 @@ def main():
         shuffle_seeds = [int(seed) for seed in args.shuffle_seeds.split(',')]
     else:
         shuffle_seeds = [None]
-    
+
     model = None
     for task_id, ft_cfg in enumerate(ft_configs, 1):
         for shuffle_seed in shuffle_seeds:
@@ -384,7 +383,6 @@ def main():
             cfg_.defrost()
             cfg_.merge_from_file(ft_cfg)
             cfg_.merge_from_list(args.opts)
-
 
             if args.custom_shot_and_epoch_and_general_copy:
                 custom_shot = int(args.custom_shot_and_epoch_and_general_copy.split("_")[0])
@@ -410,7 +408,6 @@ def main():
 
             if shuffle_seed is not None:
                 cfg_.DATASETS.SHUFFLE_SEED = shuffle_seed
-        
 
             # Remerge to make sure that the command line arguments are prioritized
             cfg_.merge_from_list(args.opts)
@@ -420,10 +417,7 @@ def main():
                 cfg_.MODEL.WEIGHT = cfg_.MODEL.WEIGHT.replace("model_last_checkpoint.pth", last_checkpoint)
                 print("cfg.MODEL.WEIGHT ", cfg_.MODEL.WEIGHT)
 
-
-            
             tuning_highlevel_override(cfg_)
-            # cfg_.freeze()
 
             logger.info("Loaded fine-tune configuration file {}".format(ft_cfg))
             with open(ft_cfg, "r") as cf:
@@ -441,16 +435,16 @@ def main():
                     shutil.copy(try_to_find(cfg_.MODEL.WEIGHT), os.path.join(cfg_.OUTPUT_DIR, "model_best.pth"))
             else:
                 model = train(
-                    cfg_, 
-                    args.local_rank, 
-                    args.distributed, 
-                    args.skip_train or custom_shot == 10000, 
+                    cfg_,
+                    args.local_rank,
+                    args.distributed,
+                    args.skip_train or custom_shot == 10000,
                     skip_optimizer_resume=args.skip_optimizer_resume,
                     save_config_path=output_config_path)
-                
+
                 if not args.skip_test:
                     test(cfg_, model, args.distributed)
-                
+
                 if args.keep_testing:
                     # for manual testing
                     cfg_.defrost()
@@ -460,7 +454,6 @@ def main():
                     pdb.set_trace()
                     # test(cfg_, model, args.distributed, verbose=True)
                     continue
-                
 
 
 if __name__ == "__main__":
