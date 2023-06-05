@@ -3,10 +3,19 @@ FROM pengchuanzhang/pytorch:ubuntu20.04_torch1.9-cuda11.3-nccl2.9.9
 ENTRYPOINT []
 
 # install GLIP & pretrained models
-RUN mkdir /app
-RUN wget http://192.168.13.107:29999/ymir-glip-models.tar.gz -qP /app \
-     && cd /app && tar -xzvf ./ymir-glip-models.tar.gz \
-     && rm /app/ymir-glip-models.tar.gz
+# can not get pretrained models from https://huggingface.co
+# so we packed all models to a tar file with following structure:
+#    bert-base-uncased/
+#    bert-base-uncased/tokenizer.json
+#    bert-base-uncased/vocab.txt
+#    bert-base-uncased/config.json
+#    bert-base-uncased/tokenizer_config.json
+#    bert-base-uncased/pytorch_model.bin
+#    MODEL/
+#    MODEL/glip_a_tiny_o365.pth
+#    MODEL/swin_tiny_patch4_window7_224.pth
+# when rebuild this docker image, you can get models from /app/MODELS and /app/bert-base-uncased in container
+ADD ./pretrained/ymir-glip-models.tar.gz /app
 RUN python -c "import nltk; nltk.download('punkt'); nltk.download('averaged_perceptron_tagger')"
 # Change the pip source if needed
 # RUN pip config set global.index-url http://mirrors.aliyun.com/pypi/simple
